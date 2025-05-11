@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   MessageSquare, 
@@ -7,14 +7,41 @@ import {
   CheckCircle, 
   AlertCircle,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  Loader,
+  AlertTriangle,
+  Bot
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+// Define Campaign type
+interface Rule {
+  field: string;
+  operator: string;
+  value: string;
+  logicGate?: string;
+}
+
+interface Campaign {
+  _id: string;
+  name: string;
+  audienceQuery: Rule[];
+  createdAt: string;
+  summary?: string;
+}
+
+// Production-ready API URL configuration
+const isProduction = import.meta.env.PROD || process.env.NODE_ENV === 'production';
+const API_URL = isProduction ? '/api' : 'http://localhost:3000/api';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data for dashboard
+  // Mock data for dashboard metrics
   const stats = [
     { name: 'Total Customers', value: '1,284', icon: <Users className="w-5 h-5" />, color: 'bg-primary-500' },
     { name: 'Active Campaigns', value: '3', icon: <MessageSquare className="w-5 h-5" />, color: 'bg-accent-500' },
@@ -22,35 +49,72 @@ const Dashboard: React.FC = () => {
     { name: 'New Customers (30d)', value: '+124', icon: <TrendingUp className="w-5 h-5" />, color: 'bg-secondary-500' },
   ];
 
-  const recentCampaigns = [
-    { 
-      id: '1', 
-      name: 'Summer Sale Promotion', 
-      date: '2 days ago', 
-      audienceSize: 743, 
-      sentCount: 712, 
-      status: 'completed',
-      performance: 'High engagement from premium customers with 96% delivery rate'
-    },
-    { 
-      id: '2', 
-      name: 'Re-engagement for Inactive Users', 
-      date: '1 week ago', 
-      audienceSize: 521, 
-      sentCount: 486, 
-      status: 'completed',
-      performance: 'Moderate success with 12% response rate from previously inactive customers'
-    },
-    { 
-      id: '3', 
-      name: 'First Purchase Discount', 
-      date: 'Today', 
-      audienceSize: 124, 
-      sentCount: 89, 
-      status: 'in-progress',
-      performance: 'Ongoing campaign targeting new subscribers'
-    },
-  ];
+  // Fetch campaigns from the backend
+  const fetchCampaigns = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await axios.get(`${API_URL}/campaigns`);
+      console.log('Dashboard: Campaigns data received:', response.data);
+      
+      // Basic validation of the response
+      if (!response.data) {
+        throw new Error('Empty response from server');
+      }
+      
+      // Ensure we have an array
+      if (!Array.isArray(response.data)) {
+        console.error('Expected array, got:', typeof response.data);
+        throw new Error('Invalid data format: expected an array');
+      }
+      
+      // Sort by creation date (newest first) and take 3 most recent
+      const sortedCampaigns = [...response.data].sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }).slice(0, 3);
+      
+      setRecentCampaigns(sortedCampaigns);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Dashboard: Failed to fetch campaigns:', err);
+      setError(`Failed to load campaigns: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  // Format date helper function
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      
+      return new Intl.DateTimeFormat('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric'
+      }).format(date);
+    } catch (err) {
+      return 'Error';
+    }
+  };
+  
+  // Helper to get campaign status (simplified version)
+  const getCampaignStatus = (campaign: Campaign) => {
+    const summary = campaign.summary?.toLowerCase() || '';
+    return summary.includes('ongoing') ? 'in-progress' : 'completed';
+  };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -102,64 +166,92 @@ const Dashboard: React.FC = () => {
             <ChevronRight className="w-4 h-4 ml-1" />
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Campaign
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Audience
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Performance
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentCampaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <Calendar className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{campaign.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{campaign.date}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{campaign.audienceSize} customers</div>
-                    <div className="text-xs text-gray-500">{campaign.sentCount} messages sent</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      campaign.status === 'completed' 
-                        ? 'bg-success-100 text-success-800' 
-                        : 'bg-accent-100 text-accent-800'
-                    }`}>
-                      {campaign.status === 'completed' ? 'Completed' : 'In Progress'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                    {campaign.performance}
-                  </td>
+        
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12">
+            <Loader className="w-6 h-6 text-primary-500 animate-spin mb-4" />
+            <p className="text-gray-600">Loading campaigns...</p>
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center">
+            <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+            <p className="text-gray-600">{error}</p>
+            <button 
+              onClick={fetchCampaigns} 
+              className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-700"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : recentCampaigns.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-600">No campaigns found. Start by creating one!</p>
+            <button 
+              onClick={() => navigate('/campaigns/create')} 
+              className="mt-4 px-4 py-2 bg-primary-100 hover:bg-primary-200 rounded-md text-primary-700"
+            >
+              Create Campaign
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Campaign
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rules
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Summary
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {recentCampaigns.map((campaign) => (
+                  <tr key={campaign._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <Calendar className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{campaign.name}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{formatDate(campaign.createdAt)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{campaign.audienceQuery?.length || 0} targeting rules</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        getCampaignStatus(campaign) === 'completed' 
+                          ? 'bg-success-100 text-success-800' 
+                          : 'bg-accent-100 text-accent-800'
+                      }`}>
+                        {getCampaignStatus(campaign) === 'completed' ? 'Completed' : 'In Progress'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                      {campaign.summary || 'No summary available'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -194,6 +286,16 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center">
                 <BarChart3 className="w-5 h-5 text-secondary-500 mr-3" />
                 <span className="text-sm font-medium text-gray-700">View Performance Analytics</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+            </button>
+            <button
+              onClick={() => navigate('/agent')}
+              className="w-full flex items-center justify-between p-3 rounded-md bg-gray-50 hover:bg-gray-100 text-left"
+            >
+              <div className="flex items-center">
+                <Bot className="w-5 h-5 text-purple-500 mr-3" />
+                <span className="text-sm font-medium text-gray-700">Interact with Agent</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </button>

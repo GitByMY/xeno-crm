@@ -7,6 +7,7 @@ import CampaignBuilder from './pages/CampaignBuilder';
 import CampaignHistory from './pages/CampaignHistory';
 import CustomerList from './pages/CustomerList';
 import AddCustomer from './pages/AddCustomer';
+import Agent from './pages/Agent';
 import Layout from './components/Layout';
 import './index.css';
 
@@ -58,6 +59,11 @@ function App() {
           <Route path="/customers/add" element={
             <ProtectedRoute>
               <AddCustomer />
+            </ProtectedRoute>
+          } />
+          <Route path="/agent" element={
+            <ProtectedRoute>
+              <Agent />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

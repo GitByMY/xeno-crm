@@ -15,8 +15,14 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/customers",
+      "methods": ["GET", "POST", "OPTIONS"],
+      "dest": "api/customers.js"
+    },
+    {
+      "src": "/api/campaigns",
+      "methods": ["GET", "POST", "OPTIONS"],
+      "dest": "api/campaigns.js"
     },
     {
       "src": "/(.*\\.(js|css|ico|png|jpg|svg|json))",

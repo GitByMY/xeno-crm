@@ -9,7 +9,8 @@ import {
   LogOut, 
   Menu,
   X,
-  Layers3
+  Layers3,
+  Bot
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -26,7 +27,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', path: '/', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> },
     { name: 'Create Campaign', path: '/campaigns/create', icon: <MessageSquare className="w-5 h-5" /> },
-    { name: 'Campaign History', path: '/campaigns/history', icon: <History className="w-5 h-5" /> }
+    { name: 'Campaign History', path: '/campaigns/history', icon: <History className="w-5 h-5" /> },
+    { name: 'Agent', path: '/agent', icon: <Bot className="w-5 h-5" /> }
   ];
 
   const handleLogout = () => {

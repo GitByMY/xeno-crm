@@ -7,7 +7,11 @@ import {
   Filter,
   RefreshCw,
   UserPlus,
-  Loader
+  Loader,
+  Trash2,
+  CheckSquare,
+  Square,
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -36,11 +40,17 @@ const CustomerList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     console.log('CustomerList: Fetching customers...');
     setLoading(true);
     setError(null);
+    setDeleteSuccess(null);
+    setDeleteError(null);
     
     try {
       const response = await axios.get(`${API_URL}/customers`);
@@ -59,6 +69,8 @@ const CustomerList: React.FC = () => {
       
       setCustomers(response.data);
       setLoading(false);
+      // Clear selection when new data is loaded
+      setSelectedCustomers(new Set());
     } catch (err: any) {
       console.error('CustomerList: Failed to fetch customers:', err);
       setError(`Failed to load customers: ${err.message}`);
@@ -74,6 +86,56 @@ const CustomerList: React.FC = () => {
   // Refresh data when user clicks refresh button
   const handleRefresh = () => {
     fetchCustomers();
+  };
+
+  // Handle checkbox selection for a customer
+  const handleSelectCustomer = (customerId: string) => {
+    const newSelected = new Set(selectedCustomers);
+    if (newSelected.has(customerId)) {
+      newSelected.delete(customerId);
+    } else {
+      newSelected.add(customerId);
+    }
+    setSelectedCustomers(newSelected);
+  };
+
+  // Handle "select all" checkbox
+  const handleSelectAll = () => {
+    if (selectedCustomers.size === sortedCustomers.length) {
+      // If all are selected, deselect all
+      setSelectedCustomers(new Set());
+    } else {
+      // Otherwise select all
+      const allIds = new Set(sortedCustomers.map(customer => customer._id));
+      setSelectedCustomers(allIds);
+    }
+  };
+
+  // Handle delete selected customers
+  const handleDeleteSelected = async () => {
+    if (selectedCustomers.size === 0) return;
+    
+    // Clear any previous messages
+    setDeleteError(null);
+    setDeleteSuccess(null);
+    setDeleteLoading(true);
+    
+    try {
+      const customerIds = Array.from(selectedCustomers);
+      const response = await axios.delete(`${API_URL}/customers`, { 
+        data: { customerIds } 
+      });
+      
+      console.log('Delete response:', response.data);
+      setDeleteSuccess(`Successfully deleted ${response.data.deletedCount} customer(s)`);
+      
+      // Refresh the customer list
+      fetchCustomers();
+    } catch (err: any) {
+      console.error('Failed to delete customers:', err);
+      setDeleteError(`Failed to delete customers: ${err.response?.data?.error || err.message}`);
+      setDeleteLoading(false);
+    }
   };
 
   const handleSort = (field: string) => {
@@ -201,16 +263,39 @@ const CustomerList: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Action Bar */}
       <div className="sm:flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+          {selectedCustomers.size > 0 && (
+            <span className="ml-4 text-sm text-gray-600">
+              {selectedCustomers.size} selected
+            </span>
+          )}
+        </div>
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-          <button
-            onClick={() => navigate('/customers/add')}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Add Customer
-          </button>
+          {selectedCustomers.size > 0 ? (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={deleteLoading}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+            >
+              {deleteLoading ? (
+                <Loader className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Delete Selected
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/customers/add')}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Customer
+            </button>
+          )}
           <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -224,6 +309,25 @@ const CustomerList: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Success/Error Messages */}
+      {deleteSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4 my-4">
+          <div className="flex">
+            <CheckSquare className="h-5 w-5 text-green-400 mr-2" />
+            <p>{deleteSuccess}</p>
+          </div>
+        </div>
+      )}
+      
+      {deleteError && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 my-4">
+          <div className="flex">
+            <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
+            <p>{deleteError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Search and Filter */}
       <div className="bg-white shadow-soft rounded-lg p-4">
@@ -255,6 +359,18 @@ const CustomerList: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button 
+                    onClick={handleSelectAll}
+                    className="focus:outline-none"
+                  >
+                    {selectedCustomers.size === sortedCustomers.length && sortedCustomers.length > 0 ? (
+                      <CheckSquare className="w-4 h-4 text-primary-600" />
+                    ) : (
+                      <Square className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
@@ -319,7 +435,22 @@ const CustomerList: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedCustomers.map((customer) => (
-                <tr key={customer._id} className="hover:bg-gray-50">
+                <tr 
+                  key={customer._id} 
+                  className={`hover:bg-gray-50 ${selectedCustomers.has(customer._id) ? 'bg-blue-50' : ''}`}
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button 
+                      onClick={() => handleSelectCustomer(customer._id)}
+                      className="focus:outline-none"
+                    >
+                      {selectedCustomers.has(customer._id) ? (
+                        <CheckSquare className="w-4 h-4 text-primary-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div>
